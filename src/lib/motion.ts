@@ -14,6 +14,15 @@ export type TrendMotion = {
   momPrior: number;
   /** Change in that run-rate, in percentage points. The second derivative. */
   accelerationPp: number;
+  /** Second derivative one window earlier. */
+  priorAccelerationPp: number;
+  /**
+   * Change in the second derivative, in percentage points.
+   * Third derivative — the acceleration of growth.
+   */
+  jerkPp: number;
+  jerkLabel: string;
+  jerkHint: string;
   phase: TrendPhase;
   phaseLabel: string;
   phaseHint: string;
@@ -21,6 +30,7 @@ export type TrendMotion = {
 
 const STEADY_PP = 1.5;
 const TROUGH_PP = -4;
+const JERK_PP = 1.5;
 
 function average(values: number[]): number {
   if (values.length === 0) return 0;
@@ -35,6 +45,39 @@ function monthOnMonth(spark: number[]): number[] {
     out.push(((spark[i] - prev) / prev) * 100);
   }
   return out;
+}
+
+function rollingAcceleration(mom: number[]): number[] {
+  const out: number[] = [];
+  for (let i = 5; i < mom.length; i++) {
+    const recent = average(mom.slice(i - 2, i + 1));
+    const prior = average(mom.slice(i - 5, i - 2));
+    out.push(recent - prior);
+  }
+  return out;
+}
+
+function jerkCopy(jerkPp: number): { label: string; hint: string } {
+  const cycle =
+    Math.abs(jerkPp) >= 15
+      ? " A print this large is a cycle tape — a launch or a crash — not a new base."
+      : "";
+  if (jerkPp >= JERK_PP) {
+    return {
+      label: "Rising",
+      hint: `Acceleration of growth is itself rising — the speed-up is getting stronger.${cycle}`,
+    };
+  }
+  if (jerkPp <= -JERK_PP) {
+    return {
+      label: "Fading",
+      hint: `Acceleration of growth is fading — the change in pace is losing force.${cycle}`,
+    };
+  }
+  return {
+    label: "Flat",
+    hint: "Acceleration of growth is roughly unchanged. The second derivative is holding.",
+  };
 }
 
 const PHASE_COPY: Record<TrendPhase, { label: string; hint: string }> = {
@@ -73,6 +116,9 @@ export function trendMotion(spark: number[], yoyChangePct: number): TrendMotion 
   const momRecent = average(mom.slice(-3));
   const momPrior = average(mom.slice(-6, -3));
   const accelerationPp = momRecent - momPrior;
+  const accelPath = rollingAcceleration(mom);
+  const priorAccelerationPp = accelPath.length >= 4 ? accelPath[accelPath.length - 4] : 0;
+  const jerkPp = accelerationPp - priorAccelerationPp;
 
   let phase: TrendPhase;
   if (momPrior < TROUGH_PP && momRecent > 0 && accelerationPp >= STEADY_PP) {
@@ -88,10 +134,15 @@ export function trendMotion(spark: number[], yoyChangePct: number): TrendMotion 
   }
 
   const copy = PHASE_COPY[phase];
+  const jerk = jerkCopy(jerkPp);
   return {
     momRecent,
     momPrior,
     accelerationPp,
+    priorAccelerationPp,
+    jerkPp,
+    jerkLabel: jerk.label,
+    jerkHint: jerk.hint,
     phase,
     phaseLabel: copy.label,
     phaseHint: copy.hint,
@@ -100,4 +151,8 @@ export function trendMotion(spark: number[], yoyChangePct: number): TrendMotion 
 
 export function momSeries(spark: number[]): number[] {
   return monthOnMonth(spark);
+}
+
+export function accelerationSeries(spark: number[]): number[] {
+  return rollingAcceleration(monthOnMonth(spark));
 }

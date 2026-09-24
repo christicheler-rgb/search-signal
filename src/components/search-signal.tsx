@@ -2,20 +2,40 @@ import { useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { AS_OF, MAX_SEARCHES, TRENDS } from "@/data/trends";
 import type { SearchTrend } from "@/data/types";
-import { formatPct, formatSearchVolume } from "@/lib/format";
+import { formatPct, formatPp, formatSearchVolume } from "@/lib/format";
+import { trendMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { Sparkline } from "./sparkline";
 import { StockCard } from "./stock-card";
-import { AccelChip, TrendMotionPanel } from "./trend-motion";
+import { AccelChip, JerkChip, TrendMotionPanel } from "./trend-motion";
 
 type ScaleMode = "linear" | "log";
+type RankMode = "size" | "accel";
 
 export function SearchSignal() {
   const [selectedId, setSelectedId] = useState(TRENDS[0].id);
   const [scale, setScale] = useState<ScaleMode>("linear");
+  const [rankBy, setRankBy] = useState<RankMode>("size");
   const [methodOpen, setMethodOpen] = useState(false);
   const detailRef = useRef<HTMLElement>(null);
 
+  const ranked = useMemo(() => {
+    if (rankBy === "size") return TRENDS;
+    return [...TRENDS].sort(
+      (a, b) =>
+        trendMotion(b.spark, b.yoyChangePct).accelerationPp -
+        trendMotion(a.spark, a.yoyChangePct).accelerationPp,
+    );
+  }, [rankBy]);
+
+  const maxAbsAccel = useMemo(
+    () =>
+      Math.max(
+        1,
+        ...TRENDS.map((t) => Math.abs(trendMotion(t.spark, t.yoyChangePct).accelerationPp)),
+      ),
+    [],
+  );
   const selected = useMemo(
     () => TRENDS.find((t) => t.id === selectedId) ?? TRENDS[0],
     [selectedId],
@@ -44,33 +64,45 @@ export function SearchSignal() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-medium tracking-widest text-subtle uppercase">
-                Ranked by combined monthly search
+                {rankBy === "size"
+                  ? "Ranked by combined monthly search"
+                  : "Ranked by second derivative"}
               </p>
               <h2 id="rank-heading" className="mt-1 font-display text-2xl font-medium tracking-tight">
-                How big they are — and how fast that is changing
+                {rankBy === "size"
+                  ? "How big they are — and how fast that is changing"
+                  : "Who is speeding up fastest"}
               </h2>
             </div>
-            <ScaleToggle scale={scale} onChange={setScale} />
+            <div className="flex flex-wrap items-center gap-2">
+              <RankToggle rankBy={rankBy} onChange={setRankBy} />
+              {rankBy === "size" ? <ScaleToggle scale={scale} onChange={setScale} /> : null}
+            </div>
           </div>
 
           <ol className="mt-6 flex flex-col gap-1.5">
-            {TRENDS.map((trend) => (
+            {ranked.map((trend, index) => (
               <li key={trend.id}>
                 <TrendRow
                   trend={trend}
+                  displayRank={index + 1}
                   selected={trend.id === selected.id}
                   scale={scale}
+                  rankBy={rankBy}
+                  maxAbsAccel={maxAbsAccel}
                   onSelect={() => selectTrend(trend.id)}
                 />
               </li>
             ))}
           </ol>
           <p className="mt-3 text-xs text-subtle">
-            {scale === "linear"
-              ? "Linear bars: #1 is full width. The cliff after smartphones is the point."
-              : "Log bars: smaller themes stay readable. Switch back to linear for true size."}{" "}
+            {rankBy === "size"
+              ? scale === "linear"
+                ? "Linear bars: #1 is full width. The cliff after smartphones is the point."
+                : "Log bars: smaller themes stay readable. Switch back to linear for true size."
+              : "Bars are the size of the second derivative — the change in the 3-month run-rate. Sorted fastest acceleration first."}{" "}
             Figures are estimated combined Google queries, trailing twelve months. YoY is
-            velocity; the signed pp figure is acceleration of the 3-month run-rate.
+            velocity. The third derivative — acceleration of growth — sits on each row.
           </p>
         </section>
 
@@ -136,9 +168,9 @@ function Hero() {
         The ten largest things people search for — and the stocks riding them.
       </h1>
       <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted">
-        Combined monthly search, sized against each other. Velocity is year-on-year
-        growth; the second derivative is whether that pace is speeding up or cooling.
-        Five listed names on every trend, with trailing P/E on current earnings.
+        Combined monthly search, sized against each other. Rank by size, or by the
+        second derivative. Velocity is year-on-year growth; the third derivative is
+        the acceleration of that growth. Five listed names on every trend.
       </p>
       <dl className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Trends" value="10" />
@@ -155,6 +187,41 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg bg-surface px-4 py-3 shadow-border">
       <dt className="text-xs text-subtle">{label}</dt>
       <dd className="mt-1 font-mono text-lg tabular-nums text-fg">{value}</dd>
+    </div>
+  );
+}
+
+function RankToggle({
+  rankBy,
+  onChange,
+}: {
+  rankBy: RankMode;
+  onChange: (mode: RankMode) => void;
+}) {
+  return (
+    <div
+      className="inline-flex rounded-md bg-surface p-1 shadow-border"
+      role="group"
+      aria-label="Rank by"
+    >
+      {(
+        [
+          ["size", "Size"],
+          ["accel", "2nd derivative"],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onChange(id)}
+          className={cn(
+            "min-h-10 rounded-sm px-3 text-sm transition-colors duration-150",
+            rankBy === id ? "bg-elevated text-fg" : "text-muted hover:text-fg",
+          )}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -196,25 +263,35 @@ function ScaleToggle({
 
 function TrendRow({
   trend,
+  displayRank,
   selected,
   scale,
+  rankBy,
+  maxAbsAccel,
   onSelect,
 }: {
   trend: SearchTrend;
+  displayRank: number;
   selected: boolean;
   scale: ScaleMode;
+  rankBy: RankMode;
+  maxAbsAccel: number;
   onSelect: () => void;
 }) {
+  const motion = trendMotion(trend.spark, trend.yoyChangePct);
   const widthPct =
-    scale === "linear"
-      ? (trend.monthlySearchesM / MAX_SEARCHES) * 100
-      : (() => {
-          const lo = Math.log10(20);
-          const hi = Math.log10(MAX_SEARCHES);
-          return ((Math.log10(trend.monthlySearchesM) - lo) / (hi - lo)) * 100;
-        })();
+    rankBy === "accel"
+      ? (Math.abs(motion.accelerationPp) / maxAbsAccel) * 100
+      : scale === "linear"
+        ? (trend.monthlySearchesM / MAX_SEARCHES) * 100
+        : (() => {
+            const lo = Math.log10(20);
+            const hi = Math.log10(MAX_SEARCHES);
+            return ((Math.log10(trend.monthlySearchesM) - lo) / (hi - lo)) * 100;
+          })();
   const shareLabel = `${((trend.monthlySearchesM / MAX_SEARCHES) * 100).toFixed(1)}% of #1`;
   const up = trend.yoyChangePct >= 0;
+  const accelUp = motion.accelerationPp >= 0;
 
   return (
     <button
@@ -228,7 +305,7 @@ function TrendRow({
     >
       <div className="flex items-center gap-3 sm:gap-4">
         <span className="w-6 shrink-0 font-mono text-xs tabular-nums text-subtle">
-          {String(trend.rank).padStart(2, "0")}
+          {String(displayRank).padStart(2, "0")}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
@@ -236,13 +313,24 @@ function TrendRow({
               {trend.name}
             </span>
             <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
-              {formatSearchVolume(trend.monthlySearchesM)}
-              <span className="hidden text-subtle sm:inline"> /mo</span>
+              {rankBy === "accel" ? (
+                <span className={accelUp ? "text-up" : "text-down"}>
+                  {formatPp(motion.accelerationPp, 1)}
+                </span>
+              ) : (
+                <>
+                  {formatSearchVolume(trend.monthlySearchesM)}
+                  <span className="hidden text-subtle sm:inline"> /mo</span>
+                </>
+              )}
             </span>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-xs bg-faint">
             <span
-              className="block h-full rounded-xs bg-accent"
+              className={cn(
+                "block h-full rounded-xs",
+                rankBy === "accel" ? (accelUp ? "bg-up" : "bg-down") : "bg-accent",
+              )}
               style={{ width: `${Math.max(widthPct, 1.2)}%` }}
             />
           </div>
@@ -261,7 +349,14 @@ function TrendRow({
               {formatPct(trend.yoyChangePct, 0)} YoY
             </span>
             <AccelChip trend={trend} />
-            <span className="hidden text-xs text-subtle sm:inline">{shareLabel}</span>
+            <JerkChip trend={trend} />
+            {rankBy === "size" ? (
+              <span className="hidden text-xs text-subtle sm:inline">{shareLabel}</span>
+            ) : (
+              <span className="hidden text-xs text-subtle sm:inline">
+                Size {String(trend.rank).padStart(2, "0")}
+              </span>
+            )}
             <Sparkline values={trend.spark} className="ml-auto h-6 w-16 sm:w-20" />
           </div>
         </div>
@@ -339,7 +434,13 @@ function Methodology() {
         faster; cooling means it is still up year-on-year but the curve has flattened.
         Decline slowing / sinking faster are the same idea when the annual print is negative.
         Rebounding and rolling over flag cycle troughs and peaks (phone launches, crypto tapes)
-        so a violent 3-month swing is not read as a new secular boom.
+        so a violent 3-month swing is not read as a new secular boom. Switch the ranking to
+        second derivative to sort themes by that acceleration, largest first.
+      </p>
+      <p>
+        <span className="text-fg">Acceleration of growth.</span> The third derivative is the
+        change in the second derivative — whether the speed-up itself is rising, fading, or
+        flat. It is labeled on every row and in the theme panel. It does not reorder the list.
       </p>
       <p>
         <span className="text-fg">Growth.</span> Past is three-year revenue CAGR. Current is

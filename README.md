@@ -8,10 +8,11 @@ Each theme is sized by **combined monthly Google searches**, then ranked against
 
 ## What it does
 
-- Ranking of ten search themes by trailing-twelve-month query volume, linear or log scale
+- Ranking of ten search themes by trailing-twelve-month query volume, or by the second derivative (fastest acceleration first)
 - **Velocity** — year-on-year search change (first derivative)
-- **Acceleration** — change in the 3-month search run-rate versus the 3 months before (second derivative), labeled speeding up / cooling / steady / rebounding / rolling over / decline slowing / sinking faster
-- Trend detail: thesis, query cluster, level / velocity / acceleration strip
+- **Acceleration** — change in the 3-month search run-rate versus the 3 months before (second derivative)
+- **Acceleration of growth** — change in that acceleration (third derivative): rising, fading, or flat
+- Trend detail: thesis, query cluster, level / velocity / second derivative / acceleration of growth
 - Five listed names per theme: price, market cap, trailing P/E, past (3-yr CAGR) / current (TTM YoY) / future (next FY consensus) growth, with the share of each print tied to the theme
 - Methodology fold at the bottom of the desk
 
