@@ -20,6 +20,8 @@ export type ListedStock = {
   current: Horizon;
   future: Horizon;
   thesis: string;
+  /** Desk flag: theme has positive accel and Rising jerk. Prefer computing via isNameSearchTrending. */
+  searchTrending?: boolean;
 };
 
 export type SearchTrend = {
@@ -37,4 +39,6 @@ export type SearchTrend = {
   thesis: string;
   sizeNote: string;
   stocks: ListedStock[];
+  /** Desk flag: positive accelerationPp and Rising jerk. Prefer isThemeSearchTrending. */
+  searchTrending?: boolean;
 };

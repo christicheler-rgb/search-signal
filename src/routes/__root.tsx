@@ -14,7 +14,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "The ten largest search trends, sized against each other, with five listed stocks on each — past, current and future growth, trend attribution, and trailing P/E.",
+          "The ten largest search trends, sized against each other, with fifteen listed stocks on each — past, current and future growth, trend attribution, and trailing P/E.",
       },
       { name: "theme-color", content: "#0e0f0c" },
     ],

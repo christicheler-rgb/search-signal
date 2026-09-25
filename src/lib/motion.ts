@@ -156,3 +156,21 @@ export function momSeries(spark: number[]): number[] {
 export function accelerationSeries(spark: number[]): number[] {
   return rollingAcceleration(monthOnMonth(spark));
 }
+
+/**
+ * Desk lock: a theme is search-trending when acceleration is positive AND
+ * jerk is Rising. Softer screens can use accelerationPp > 0 alone; this flag
+ * requires both so the boolean stays crisp for CIO/Lab filters.
+ */
+export function isThemeSearchTrending(spark: number[], yoyChangePct: number): boolean {
+  const motion = trendMotion(spark, yoyChangePct);
+  return motion.accelerationPp > 0 && motion.jerkLabel === "Rising";
+}
+
+/** Name-level alias: a listed name is search-trending when its theme is. */
+export function isNameSearchTrending(theme: {
+  spark: number[];
+  yoyChangePct: number;
+}): boolean {
+  return isThemeSearchTrending(theme.spark, theme.yoyChangePct);
+}
