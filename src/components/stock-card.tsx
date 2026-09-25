@@ -8,9 +8,11 @@ import { GrowthSplit } from "./growth-split";
 type StockCardProps = {
   stock: ListedStock;
   defaultOpen?: boolean;
+  /** Theme-level desk flag from isNameSearchTrending. */
+  searchTrending?: boolean;
 };
 
-export function StockCard({ stock, defaultOpen = false }: StockCardProps) {
+export function StockCard({ stock, defaultOpen = false, searchTrending = false }: StockCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const peLabel = formatPe(stock.pe);
 
@@ -18,11 +20,16 @@ export function StockCard({ stock, defaultOpen = false }: StockCardProps) {
     <article className="rounded-xl bg-surface p-4 shadow-border sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-wrap items-baseline gap-2">
             <p className="font-mono text-sm font-medium tracking-wide text-accent">
               {stock.ticker}
             </p>
             <span className="text-xs text-subtle">{stock.listing}</span>
+            {searchTrending || stock.searchTrending ? (
+              <span className="inline-flex items-center rounded-full bg-elevated px-2 py-0.5 text-[10px] font-medium tracking-wide text-accent uppercase shadow-border">
+                Search-trending
+              </span>
+            ) : null}
           </div>
           <h3 className="mt-0.5 font-display text-xl font-medium tracking-tight text-fg">
             {stock.name}
